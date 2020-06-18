@@ -1,5 +1,5 @@
 var MongoClient = require('mongodb').MongoClient;
-let url = "mongodb://172.16.20.71:27017";
+let url = "mongodb://127.0.0.1:27017";
 var GetConnection = function () {
     return new Promise(async function (resolve, reject) {
         try {
