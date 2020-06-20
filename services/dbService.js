@@ -20,7 +20,7 @@ module.exports = {
 
     getAuthorsDetailsByAwards: function (req, res) {
         let NumberOfAwards = parseInt(req.query.n);
-        db.collection('Authors').find({ "awards": { $gte: NumberOfAwards } }).toArray(function (err, authorDetails) {
+        db.collection('authors').find({awards : {$exists:true}, $where:'this.awards.length>=' + NumberOfAwards} ).toArray(function (err, authorDetails) {
             if (err) {
                 console.log(err)
                 res.send({ "status": "error", "message": "Error while gettig authors list", "status_code": "DBERR" });
@@ -37,7 +37,7 @@ module.exports = {
 
     getAuthorsDetailsByYear: function (req, res) {
         let year = parseInt(req.query.y);
-        db.collection('Authors').find({ "year": { $gte: year } }).toArray(function (err, authorDetails) {
+        db.collection('authors').find({ awards: { $elemMatch: { year: {$gte : year }} } }).toArray(function (err, authorDetails) {
             if (err) {
                 res.send({ "status": "error", "message": "Error while gettig authors list", "status_code": "DBERR" });
             }
@@ -52,17 +52,23 @@ module.exports = {
     },
 
     getTotalBooksSoldByAuhors: function (req, res) {
-        db.collection('Authors').aggregate([{
-            "$group": {
-                _id: "$name",
-                "totalBooksSold": { $sum: { $add: ["$awards"] } },
+        db.collection('authors').aggregate([
+         { "$lookup": {
+       "from": "books",
+       "localField": "_id",
+       "foreignField": "authorId",
+       "as": "booksObjects"
+    }},
+    { "$unwind": "$booksObjects" },
+    { "$group": {
+        "_id": "$booksObjects.authorId",
+        "totalBooksSold": { $sum: { $add: ["$booksObjects.sold"] } },
                 "totalProfit": {
                     $sum:
-                        { $multiply: ["$price", "$awards"] }
-                },
-            }
-        }
-        ]).toArray(function (err, authorDetails) {
+                        { $multiply: ["$booksObjects.price", "$booksObjects.sold"] }
+                }, }
+    }}
+  }]).toArray(function (err, authorDetails) {
             console.log(usersDetails)
             if (err) {
                 res.send({ "status": "error", "message": "Error while gettig authors list", "status_code": "DBERR" });
@@ -81,25 +87,26 @@ module.exports = {
     getHighestProfitByAuhorsBirthdate: function (req, res) {
         let birthDate =  req.query.birthDate;
         let totalPrice = req.query.totalPrice;
-        db.collection('Authors').aggregate([
-            { $match: { "birthdate": { $gt: birthDate } } },
-            {
-                "$group": {
-                    _id: "$name",
-                    "totalPrice": {
+        db.collection('authors').aggregate([
+            { $match: {  "birth": { $lt: new Date(birthDate)} } },
+         { "$lookup": {
+       "from": "books",
+       "localField": "_id",
+       "foreignField": "authorId",
+       "as": "booksObjects"
+    }},
+    { "$unwind": "$booksObjects" },
+    { "$group": {
+        "_id": "$booksObjects.authorId",
+        "totalPrice": 
+        {
                         $sum:
-                            { $multiply: ["$price", "$awards"] }
+                            { $multiply: ["$booksObjects.price", "$booksObjects.sold"] }
                     },
-
-                }
-            },
-            {
-                $match: {
-                    "totalPrice": {
-                        $gte: totalPrice
-                    }
-                }
-            }
+    }},
+    {
+     $match:  {"totalPrice" : {$gte : totalPrice} }   
+    }
         ]).toArray(function (err, authorDetails) {
             console.log(usersDetails)
             if (err) {
